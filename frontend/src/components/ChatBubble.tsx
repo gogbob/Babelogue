@@ -51,10 +51,14 @@ export function ChatList({ messages }: { messages: BubbleMessageProps[] }) {
   const end = useRef<HTMLDivElement>(null)
 
   //Whenever messages changes, scroll into the view the current message
-  useEffect(() => end.current?.scrollIntoView({ behavior: 'smooth' }), [messages])
+  // Braces matter: newer browsers return a Promise from scrollIntoView,
+  // and React treats any returned value as a cleanup function.
+  useEffect(() => {
+    end.current?.scrollIntoView({ behavior: 'smooth' })
+  }, [messages])
 
   return (
-    <div className="flex flex-1 flex-col gap-3 overflow-y-auto p-4">
+    <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto p-4">
       {messages.map((m) => (
         <ChatBubble key={m.id} message={m} />
       ))}

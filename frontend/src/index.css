@@ -13,6 +13,7 @@
    Each speaker has: bubble background, accent (border/dot/name), text.
    ------------------------------------------------------------------ */
 :root {
+  color-scheme: light;     /* native scrollbars/inputs match the theme */
   --app-bg: #f8fafc;        /* page background */
   --app-surface: #ffffff;   /* header, menu, input bar */
   --app-border: #e2e8f0;
@@ -39,6 +40,7 @@
    Each bubble is a deep shade of the same hue, kept far apart from the
    others so red / blue / yellow / green stay easy to tell apart. */
 .dark {
+  color-scheme: dark;
   --app-bg: #0b0f19;
   --app-surface: #111827;
   --app-border: #1f2937;
@@ -175,6 +177,34 @@
     border-left-style: solid;
   }
 
+  /* Full-height vertical screen shell for the main view */
+  .screen-shell {
+    display: flex;
+    flex-direction: column;
+    height: 100vh;
+    height: 100dvh; /* mobile: excludes the browser address bar */
+    background-color: var(--app-bg);
+    color: var(--app-text);
+  }
+
+  /* Main view title */
+  .screen-title {
+    flex-shrink: 0;
+    padding: 1rem;
+    text-align: center;
+    font-size: 1.875rem; /* 30px, matches Tailwind text-3xl */
+    line-height: 2.25rem;
+    font-weight: 700;
+  }
+
+  /* Centered stack above/around the mic controls */
+  .controls-stack {
+    display: flex;
+    flex-shrink: 0;
+    flex-direction: column;
+    align-items: center;
+  }
+
   /* Bottom bar holding the microphone button */
   .mic-bar {
     display: flex;
@@ -206,6 +236,27 @@
     background-color: var(--mic-active);
     color: #ffffff;
     animation: mic-pulse 1.5s ease-out infinite;
+  }
+
+  /* Sound wave canvas: never wider than the screen */
+  .wave-canvas {
+    max-width: 100%;
+    height: auto;
+  }
+
+  /* ---------------- Mobile (phones: narrow screens) ---------------- */
+  @media (max-width: 640px) {
+    .app-header { padding: 0.25rem 0.75rem; }
+    .screen-title { padding: 0.5rem; font-size: 1.5rem; line-height: 2rem; }
+    .bubble { max-width: 85%; padding: 0.375rem 0.75rem; font-size: 0.95rem; }
+    .mic-bar { padding: 0.75rem; }
+    .mic-button { height: 3.5rem; width: 3.5rem; }
+  }
+
+  /* Touch screens (no mouse): skip the hover zoom, it sticks after a tap */
+  @media (hover: none) {
+    .mic-button:hover { transform: none; }
+    .icon-button:hover { background-color: transparent; }
   }
 }
 

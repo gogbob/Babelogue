@@ -14,17 +14,16 @@ interface SoundWavesProps {
 export function SoundWaves({ stream, width = 320, height = 80 }: SoundWavesProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
 
+  //Draws the wave
   useEffect(() => {
     const canvas = canvasRef.current
     const ctx = canvas?.getContext('2d')
     if (!canvas || !ctx) return
-    const color = getComputedStyle(canvas).color // follows the theme text color
-
     // Draws one waveform frame (all 128s = silence = flat line)
     const draw = (samples: Uint8Array) => {
       ctx.clearRect(0, 0, width, height)
       ctx.lineWidth = 2
-      ctx.strokeStyle = color
+      ctx.strokeStyle = getComputedStyle(canvas).color // theme text color, re-read so it follows light/dark
       ctx.beginPath()
       samples.forEach((v, i) => {
         const x = (i / (samples.length - 1)) * width
@@ -37,8 +36,12 @@ export function SoundWaves({ stream, width = 320, height = 80 }: SoundWavesProps
 
     //Go to middle
     if (!stream) {
-      draw(new Uint8Array(2).fill(128))
-      return
+      const flat = () => draw(new Uint8Array(2).fill(128))
+      flat()
+      // Not animating, so redraw the flat line when the theme class changes
+      const observer = new MutationObserver(flat)
+      observer.observe(document.documentElement, { attributes: true, attributeFilter: ['class'] })
+      return () => observer.disconnect()
     }
 
     // Connect the mic stream to an analyser (not to the speakers, so no echo)
@@ -62,5 +65,5 @@ export function SoundWaves({ stream, width = 320, height = 80 }: SoundWavesProps
     }
   }, [stream, width, height])
 
-  return <canvas ref={canvasRef} width={width} height={height} className="text-app-text" />
+  return <canvas ref={canvasRef} width={width} height={height} className="wave-canvas text-app-text" />
 }
