@@ -1,5 +1,9 @@
 hi
 
+REQUIREMENTS:
+- Ideally <5 seconds send time between users
+- Can support up to 4 ppl
+
 speach separator: Multi-Decoder DPRNN or SepTDA
 
 speach recognition (speaker mermory): NVIDIA Streaming Sortformer
