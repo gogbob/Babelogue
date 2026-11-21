@@ -6,6 +6,8 @@ speach recognition (speaker mermory): NVIDIA Streaming Sortformer
 
 speach to text: Whisper + fast-Whisper
 
+text to speech: Azure AI API (TTS)
+
 translation: TranslateGemma
 
 
