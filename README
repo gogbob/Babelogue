@@ -1,1 +1,12 @@
 hi
+
+speach separator: Multi-Decoder DPRNN or SepTDA
+
+speach recognition (speaker mermory): NVIDIA Streaming Sortformer
+
+speach to text: Whisper + fast-Whisper
+
+translation: TranslateGemma
+
+
+
