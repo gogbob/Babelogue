@@ -4,15 +4,25 @@ REQUIREMENTS:
 - Ideally <5 seconds send time between users
 - Can support up to 4 ppl
 
-speach separator: Multi-Decoder DPRNN or SepTDA
+voice activity detection: Silero VAD
 
-speach recognition (speaker mermory): NVIDIA Streaming Sortformer
+speach separator: Multi-Decoder DPRNN or SepTDA (stretch goal, not in MVP, use turn-taking instead)
 
-speach to text: Whisper + fast-Whisper
+speach recognition (speaker mermory): NVIDIA Streaming Sortformer (Good) + voice embeddings, with voice check-in and manual one-tap reassignment
 
-text to speech: Azure AI API (TTS)
+speach to text: Whisper + fast-Whisper (faster-whisper, int8 quantized, also does language detection)
 
-translation: TranslateGemma
+text to speech: Azure AI API (TTS) (on click only, proxied through backend, cached, watch F0 free tier limits)
 
+translation: TranslateGemma (finalized utterances only, keep a faster fallback ready)
+
+
+Backend: Python + FastAPI
+
+Frontend: TypeScript/React/Vite + Tailwind CSS
+
+Real-time transport: WebSockets (audio chunks + live chat events) + REST (/tts)
+
+Demo fallback: Text input box (type messages if mic or venue noise fails)
 
 
