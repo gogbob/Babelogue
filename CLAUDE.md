@@ -4,8 +4,15 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project status
 
-Babelogue is a CodeJam hackathon project, currently in the planning stage. The repo has only `README`, `Babelogue.png` (the logo) and this file. There is no source code, build system or test suite yet. Add the real commands here once the project is scaffolded.
+Babelogue is a CodeJam hackathon project. `frontend/` holds an empty React + Vite + TypeScript + Tailwind app with no features yet. The backend is not built yet, and there is no test suite.
 
+## Commands (frontend)
+
+Run these from `frontend/`:
+- `npm install`: install dependencies
+- `npm run dev`: dev server at http://localhost:5173 (proxies `/ws` and `/tts` to `localhost:8000`)
+- `npm run build`: type-check, then production build
+- `npm run typecheck`: type-check only
 ## What we are building
 
 A real-time conversation translator for **up to 4 people sharing one microphone**. Think of it as "Google Translate for a live group conversation." Each person sees everyone's speech as a live chat, translated into their own preferred language.

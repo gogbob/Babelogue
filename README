@@ -16,7 +16,6 @@ text to speech: Azure AI API (TTS) (on click only, proxied through backend, cach
 
 translation: TranslateGemma (finalized utterances only, keep a faster fallback ready)
 
-
 Backend: Python + FastAPI
 
 Frontend: TypeScript/React/Vite + Tailwind CSS
