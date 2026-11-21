@@ -24,4 +24,7 @@ Real-time transport: WebSockets (audio chunks + live chat events) + REST (/tts)
 
 Demo fallback: Text input box (type messages if mic or venue noise fails)
 
+Install:
+run npm install (first time only), then npm run dev in fontend/.
+
 
