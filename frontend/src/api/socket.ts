@@ -5,6 +5,7 @@ import type { AudioChunk } from '../audio/chunkRecorder'
 import type { ClientMessage, ServerMessage } from './protocol'
 
 const RETRY_MS = 1500
+const SESSION_NOT_FOUND = 4404 // close code from the backend (sessions live in memory: lost on restart)
 
 export class SessionSocket {
   private ws: WebSocket | null = null
@@ -14,6 +15,7 @@ export class SessionSocket {
   constructor(
     private sessionId: string,
     private onMessage: (msg: ServerMessage) => void,
+    private onSessionGone: () => void, // backend doesn't know this session (anymore)
   ) {
     this.connect()
   }
@@ -56,8 +58,14 @@ export class SessionSocket {
     ws.onmessage = (e) => {
       if (typeof e.data === 'string') this.onMessage(JSON.parse(e.data) as ServerMessage)
     }
-    ws.onclose = () => {
-      if (!this.closed) setTimeout(() => this.connect(), RETRY_MS) // backend restarted / network blip
+    ws.onclose = (e) => {
+      if (this.closed) return
+      if (e.code === SESSION_NOT_FOUND) {
+        this.closed = true // retrying can't help
+        this.onSessionGone()
+      } else {
+        setTimeout(() => this.connect(), RETRY_MS) // network blip / backend restarting
+      }
     }
     this.ws = ws
   }

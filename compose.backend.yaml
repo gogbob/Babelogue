@@ -24,8 +24,6 @@ services:
       - babelogue_voice_samples:/app/voice_samples
     networks:
       - app_net
-    depends_on:
-      - mock-audio
     security_opt:
       - no-new-privileges:true
     healthcheck:
@@ -34,26 +32,6 @@ services:
       timeout: 8s
       retries: 4
       start_period: 20s
-
-  mock-audio:
-    image: babelogue-backend:local
-    build:
-      context: ./backend
-      dockerfile: Dockerfile
-    restart: unless-stopped
-    command: ["uvicorn", "mock_audio_service.main:app", "--host", "0.0.0.0", "--port", "8001", "--workers", "1"]
-    expose:
-      - "8001"
-    networks:
-      - app_net
-    security_opt:
-      - no-new-privileges:true
-    healthcheck:
-      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8001/health', timeout=5)"]
-      interval: 30s
-      timeout: 8s
-      retries: 4
-      start_period: 15s
 
   # Staging gateway: do NOT switch Cloudflare route until security controls are ready.
   # This avoids modifying the existing frontend Nginx image/configuration.

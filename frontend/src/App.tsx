@@ -93,7 +93,9 @@ export default function App() {
           break;
       }
     };
-    const s = new SessionSocket(sessionId, onMessage);
+    // Backend restarted and forgot this session: reload to start a fresh one
+    // (everyone calibrates again, since voices were stored with the old session).
+    const s = new SessionSocket(sessionId, onMessage, () => location.reload());
     socket.current = s;
     return () => {
       s.close();
@@ -150,7 +152,13 @@ export default function App() {
         selected={selected === person.slot}
         onSelect={() => setSelected(person.slot)}
       >
-        <ChatList messages={utterances.map((u) => toBubble(u, person, participants))} />
+        <ChatList
+          messages={utterances
+            // Hide speech whose voice wasn't recognised (gray bubbles). A live bubble that gets
+            // recognised later appears then, in the speaker's color.
+            .filter((u) => participants.some((p) => p.id === u.participant_id))
+            .map((u) => toBubble(u, person, participants))}
+        />
       </ChatContainer>
     ))}
     <AddChatButton

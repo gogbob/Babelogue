@@ -17,6 +17,9 @@ _client_message = TypeAdapter(ClientMessage)
 async def session_socket(ws: WebSocket, session_id: str):
     session = ws.app.state.sessions.get(session_id)
     if session is None:
+        # Accept first: a close before accepting reaches the browser as a plain 403/1006,
+        # and the page couldn't tell "session gone (backend restarted)" from a network blip.
+        await ws.accept()
         await ws.close(code=4404, reason="session not found")
         return
 

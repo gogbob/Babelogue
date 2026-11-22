@@ -1,4 +1,4 @@
-# Babelogue FastAPI API and optional mock GPU service. Core dependencies only.
+# Babelogue FastAPI API. Core dependencies only.
 FROM python:3.12-slim
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
@@ -16,7 +16,6 @@ COPY requirements.txt ./requirements.txt
 RUN python -m pip install -r requirements.txt
 
 COPY app/ ./app/
-COPY mock_audio_service/ ./mock_audio_service/
 
 RUN useradd --create-home --uid 10001 appuser \
     && mkdir -p /app/tts_cache /app/voice_samples \

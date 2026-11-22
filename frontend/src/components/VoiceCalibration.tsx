@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { SoundWaves } from './SoundWaves'
 import { blobToWav } from '../audio/wav'
 
-const RECORD_SECONDS = 5
+const RECORD_SECONDS = 10
 
 // Languages the person can pick as their preferred language
 export const LANGUAGES = [
