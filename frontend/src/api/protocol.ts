@@ -15,6 +15,7 @@
 
 import type { SpeakerSlot } from '../components/ChatBubble'
 
+//The user
 export interface Participant {
   id: string
   name: string
@@ -22,6 +23,8 @@ export interface Participant {
   slot: SpeakerSlot // decides the color
 }
 
+
+// Status of a text bubble
 export interface Utterance {
   id: string
   participant_id: string | null // null = speaker not recognised yet (reassign it)

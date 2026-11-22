@@ -1,17 +1,20 @@
 import { useEffect, useRef, useState } from 'react'
+import { ChunkRecorder, type AudioChunk } from '../audio/chunkRecorder'
 
 interface MicProps {
   /** Called with the live microphone stream when recording starts. */
   onStart?: (stream: MediaStream) => void
   /** Called when recording stops. */
   onStop?: () => void
+  /** Called with each 5 s .wav chunk while recording (a new one every 3 s: 0-5 s, 3-8 s, 6-11 s...). */
+  onChunk?: (chunk: AudioChunk) => void
 }
 
 /**
  * Bottom-of-screen microphone button. Click to start talking to the others,
  * click again to stop. Styles: .mic-bar, .mic-button, .mic-button-active (index.css).
  */
-export function Mic({ onStart, onStop }: MicProps) {
+export function Mic({ onStart, onStop, onChunk }: MicProps) {
   //Returns if recording is true or not (false by default)
   const [recording, setRecording] = useState(false)
 
@@ -20,10 +23,15 @@ export function Mic({ onStart, onStop }: MicProps) {
   
   //Stream reference
   const streamRef = useRef<MediaStream | null>(null)
+  // Cuts the live audio into overlapping 5 s .wav chunks (3 s hop)
+  const chunkerRef = useRef<ChunkRecorder | null>(null)
 
   //Stop function
   const stop = () => {
     
+    // Finish chunking first (sends the leftover audio as a last chunk), then release the mic
+    chunkerRef.current?.stop()
+    chunkerRef.current = null
     //Get the media tracks (radio/video tracks) and stop each of them (includes the mic) to stop stream
     streamRef.current?.getTracks().forEach((t) => t.stop())
     streamRef.current = null
@@ -42,13 +50,24 @@ export function Mic({ onStart, onStop }: MicProps) {
       streamRef.current = stream
       setRecording(true)
       onStart?.(stream)
+      if (onChunk) {
+        const chunker = new ChunkRecorder(onChunk, 5, 3) // 5 s window, 3 s hop
+        chunkerRef.current = chunker
+        await chunker.start(stream)
+      }
     } catch {
       setError('Microphone access was denied or is unavailable.')
     }
   }
 
   // Release the microphone if the component unmounts while recording.
-  useEffect(() => () => streamRef.current?.getTracks().forEach((t) => t.stop()), [])
+  useEffect(
+    () => () => {
+      chunkerRef.current?.stop()
+      streamRef.current?.getTracks().forEach((t) => t.stop())
+    },
+    [],
+  )
 
   return (
     <div className="mic-bar flex-col items-center gap-2">
