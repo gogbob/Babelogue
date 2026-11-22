@@ -1,5 +1,7 @@
 # Babelogue
 
+**Contributors:** Christophe Lewis, Thomas Alexandrescu, Tony Yang
+
 **GitHub:** https://github.com/gogbob/Babelogue
 
 ## 1. Project Overview
