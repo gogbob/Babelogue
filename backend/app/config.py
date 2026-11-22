@@ -45,6 +45,7 @@ class Settings(BaseSettings):
     azure_speech_key: str = ""
     azure_speech_region: str = ""
     tts_cache_dir: Path = BACKEND_DIR / "tts_cache"
+    voice_samples_dir: Path = BACKEND_DIR / "voice_samples"  # saved voice check-in recordings
 
     # --- Server ---
     cors_origins: list[str] = ["http://localhost:5173"]
