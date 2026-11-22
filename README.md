@@ -1,6 +1,6 @@
 # Babelogue
 
-**Status:** Frontend publicly deployed, backend and GPU inference integration in development.
+**Contributors:** Christophe Lewis, Thomas Alexandrescu, Tony Yang
 
 **GitHub:** https://github.com/gogbob/Babelogue
 
