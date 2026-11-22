@@ -1,7 +1,5 @@
 # Babelogue
 
-**Status:** Frontend publicly deployed, backend and GPU inference integration in development.
-
 **GitHub:** https://github.com/gogbob/Babelogue
 
 ## 1. Project Overview
