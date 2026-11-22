@@ -7,3 +7,4 @@ __pycache__/
 .venv/
 backend/tts_cache/
 backend/.env
+backend/voice_samples/

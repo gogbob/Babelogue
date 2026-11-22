@@ -19,8 +19,8 @@ COPY app/ ./app/
 COPY mock_audio_service/ ./mock_audio_service/
 
 RUN useradd --create-home --uid 10001 appuser \
-    && mkdir -p /app/tts_cache \
-    && chown -R appuser:appuser /app/tts_cache
+    && mkdir -p /app/tts_cache /app/voice_samples \
+    && chown -R appuser:appuser /app/tts_cache /app/voice_samples
 USER appuser
 
 EXPOSE 8000

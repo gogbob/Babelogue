@@ -16,10 +16,12 @@ services:
       TRANSLATOR_BACKEND: azure
       PARTIAL_TRANSCRIPTS: "false"
       TTS_CACHE_DIR: /app/tts_cache
+      VOICE_SAMPLES_DIR: /app/voice_samples  # calibration recordings + mic chunks
     expose:
       - "8000"
     volumes:
       - babelogue_tts_cache:/app/tts_cache
+      - babelogue_voice_samples:/app/voice_samples
     networks:
       - app_net
     depends_on:
@@ -78,3 +80,4 @@ services:
 
 volumes:
   babelogue_tts_cache:
+  babelogue_voice_samples:

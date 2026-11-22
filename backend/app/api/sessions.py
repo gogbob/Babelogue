@@ -1,18 +1,18 @@
 """REST: create/end a session, voice check-in, transcript log."""
 
 import uuid
+from pathlib import Path
 
 from fastapi import APIRouter, Form, HTTPException, Request, UploadFile
 
 from ..schemas import Participant, SessionCreated, Utterance
-from ..services.audio_service import AudioServiceError
-from ..services.audio_utils import decode_any, fit_duration
+from ..services.audio_service import AudioServiceError  # used by create_session
+from ..services.audio_utils import decode_any, fit_duration, to_wav_bytes
 from ..session import Session, SessionManager
 
 router = APIRouter(prefix="/api/sessions", tags=["sessions"])
 
-CHECKIN_SECONDS = 5.0  # the audio service accepts 4.5-5.5 s
-CHECKIN_MIN_SECONDS = 4.5
+CHECKIN_SECONDS = 5.0  # the recording is padded/trimmed to exactly this length
 
 
 def manager(request: Request) -> SessionManager:
@@ -57,21 +57,50 @@ async def check_in(
         raise HTTPException(409, "session is full (max 4 participants)")
 
     rate = session.services.settings.sample_rate
+    raw = await audio_file.read()
     try:
-        audio = decode_any(await audio_file.read(), rate)
+        audio = decode_any(raw, rate)
     except Exception as e:
         raise HTTPException(400, f"could not decode audio: {e}")
-    if len(audio) < CHECKIN_MIN_SECONDS * rate:
-        raise HTTPException(400, f"voice sample too short ({len(audio) / rate:.1f}s), record about 5 seconds")
 
     participant = Participant(id=f"p{slot}-{uuid.uuid4().hex[:6]}", name=name, language=language, slot=slot)
-    try:
-        await session.services.audio.register_speaker(
-            session.conversation_id, participant.id, fit_duration(audio, rate, CHECKIN_SECONDS))
-    except AudioServiceError as e:
-        raise HTTPException(422, f"voice check-in failed: {e}")
+    sample = fit_duration(audio, rate, CHECKIN_SECONDS)
+    # Only save the recording as files in the project. The voice is NOT sent to the
+    # speaker-ID audio service yet; to enable recognition later, call:
+    #   await session.services.audio.register_speaker(session.conversation_id, participant.id, sample)
+    save_voice_sample(session, participant, raw, audio_file.filename, to_wav_bytes(sample, rate))
     await session.add_participant(participant)
     return participant
+
+
+def save_voice_sample(session: Session, p: Participant, raw: bytes, filename: str | None, wav: bytes) -> None:
+    """Keep the check-in recording on disk: voice_samples/<session>/<participant>.<ext> (as uploaded)
+    and <participant>.wav (16 kHz mono, exactly 5 s: the format the speaker-ID model expects)."""
+    folder = session.services.settings.voice_samples_dir / session.id
+    folder.mkdir(parents=True, exist_ok=True)
+    ext = Path(filename or "").suffix.lower() or ".bin"
+    if ext != ".wav":  # don't overwrite the normalized WAV with the upload
+        (folder / f"{p.id}{ext}").write_bytes(raw)
+    (folder / f"{p.id}.wav").write_bytes(wav)
+
+
+@router.post("/{session_id}/chunks")
+async def save_chunk(
+    request: Request,
+    session_id: str,
+    index: int = Form(..., ge=0),
+    start: float = Form(..., ge=0),
+    end: float = Form(..., ge=0),
+    audio_file: UploadFile = ...,
+):
+    """Save one mic chunk (5 s .wav, a new one every 3 s) as
+    voice_samples/<session>/chunks/chunk_<index>_<start>-<end>s.wav. No processing."""
+    session = get_session(request, session_id)
+    folder = session.services.settings.voice_samples_dir / session.id / "chunks"
+    folder.mkdir(parents=True, exist_ok=True)
+    path = folder / f"chunk_{index:04d}_{start:.1f}-{end:.1f}s.wav"
+    path.write_bytes(await audio_file.read())
+    return {"saved": path.name, "bytes": path.stat().st_size}
 
 
 @router.delete("/{session_id}/participants/{participant_id}")

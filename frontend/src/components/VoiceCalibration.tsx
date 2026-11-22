@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { SoundWaves } from './SoundWaves'
+import { blobToWav } from '../audio/wav'
 
 const RECORD_SECONDS = 5
 
@@ -16,16 +17,17 @@ export const LANGUAGES = [
 ]
 
 export interface VoiceSample {
-  audio: Blob // 5-second recording, sent to the speaker-recognition AI later
+  audio: Blob // 5-second recording as a 16 kHz mono .wav, uploaded to the backend
   language: string // preferred language code, e.g. 'fr'
 }
 
 interface VoiceCalibrationProps {
-  onComplete: (sample: VoiceSample) => void
+  /** Uploads the sample; the pop-up shows "Saving…" until it resolves and shows the error if it throws. */
+  onComplete: (sample: VoiceSample) => Promise<void>
   onCancel: () => void
 }
 
-type Step = 'idle' | 'recording' | 'done'
+type Step = 'idle' | 'recording' | 'done' | 'saving'
 
 /**
  * Pop-up shown by the "+" button. The new person records 5 seconds of their
@@ -54,7 +56,7 @@ export function VoiceCalibration({ onComplete, onCancel }: VoiceCalibrationProps
 
   // Escape closes the pop-up (except mid-recording)
   useEffect(() => {
-    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && step !== 'recording' && onCancel()
+    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && step !== 'recording' && step !== 'saving' && onCancel()
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
   }, [step, onCancel])
@@ -71,10 +73,15 @@ export function VoiceCalibration({ onComplete, onCancel }: VoiceCalibrationProps
     const chunks: Blob[] = []
     const recorder = new MediaRecorder(mic)
     recorder.ondataavailable = (e) => chunks.push(e.data)
-    recorder.onstop = () => {
-      audio.current = new Blob(chunks, { type: recorder.mimeType })
-      setStep('done')
+    recorder.onstop = async () => {
       releaseMic()
+      const recorded = new Blob(chunks, { type: recorder.mimeType })
+      try {
+        audio.current = await blobToWav(recorded) // 16 kHz mono .wav
+      } catch {
+        audio.current = recorded // browser couldn't decode it: upload the original instead
+      }
+      setStep('done')
     }
 
     micRef.current = mic
@@ -83,22 +90,37 @@ export function VoiceCalibration({ onComplete, onCancel }: VoiceCalibrationProps
     setSecondsLeft(RECORD_SECONDS)
     recorder.start()
 
-    // Count down each second, stop at 0
+    // Count down each second, stop at 0. A short extra tail keeps the clip safely
+    // above the backend's 4.5 s minimum (it trims to exactly 5 s).
     let left = RECORD_SECONDS
     timer.current = window.setInterval(() => {
       left -= 1
       setSecondsLeft(left)
       if (left <= 0) {
         clearInterval(timer.current)
-        recorder.stop()
+        window.setTimeout(() => recorder.stop(), 300)
       }
     }, 1000)
   }
 
+  // Send the recording to the backend; stay open with the error if it fails
+  const save = async () => {
+    if (!audio.current) return
+    setStep('saving')
+    setError(null)
+    try {
+      await onComplete({ audio: audio.current, language })
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Saving the voice sample failed.')
+      setStep('done')
+    }
+  }
+
   const recording = step === 'recording'
+  const busy = recording || step === 'saving'
 
   return (
-    <div className="modal-backdrop" onClick={() => !recording && onCancel()}>
+    <div className="modal-backdrop" onClick={() => !busy && onCancel()}>
       <div className="modal" role="dialog" aria-modal="true" aria-labelledby="calib-title" onClick={(e) => e.stopPropagation()}>
         <h2 id="calib-title" className="text-lg font-bold">Voice calibration</h2>
         <p className="text-sm text-app-muted">
@@ -109,7 +131,7 @@ export function VoiceCalibration({ onComplete, onCancel }: VoiceCalibrationProps
           className="modal-select"
           value={language}
           onChange={(e) => setLanguage(e.target.value)}
-          disabled={recording}
+          disabled={busy}
           aria-label="Preferred language"
         >
           {LANGUAGES.map((language) => (
@@ -121,7 +143,7 @@ export function VoiceCalibration({ onComplete, onCancel }: VoiceCalibrationProps
           type="button"
           className={`mic-button ${recording ? 'mic-button-active' : ''}`}
           onClick={record}
-          disabled={recording}
+          disabled={busy}
           aria-label={step === 'done' ? 'Record again' : 'Start recording'}
         >
           {recording ? (
@@ -137,20 +159,20 @@ export function VoiceCalibration({ onComplete, onCancel }: VoiceCalibrationProps
         <SoundWaves stream={stream} width={240} height={48} />
 
         <p className="min-h-5 text-sm" aria-live="polite">
-          {error ?? (recording ? `Recording… ${secondsLeft}s left` : step === 'done' ? '✓ Voice recorded. Press the mic to redo it.' : 'Press the mic to start')}
+          {error ?? (recording ? `Recording… ${secondsLeft}s left` : step === 'saving' ? 'Saving your voice…' : step === 'done' ? '✓ Voice recorded. Press the mic to redo it.' : 'Press the mic to start')}
         </p>
 
         <div className="flex w-full justify-end gap-2">
-          <button type="button" className="modal-button" onClick={onCancel} disabled={recording}>
+          <button type="button" className="modal-button" onClick={onCancel} disabled={busy}>
             Cancel
           </button>
           <button
             type="button"
             className="modal-button modal-button-primary"
             disabled={step !== 'done'}
-            onClick={() => audio.current && onComplete({ audio: audio.current, language })}
+            onClick={save}
           >
-            Add chat
+            {step === 'saving' ? 'Saving…' : 'Add chat'}
           </button>
         </div>
       </div>

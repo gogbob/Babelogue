@@ -97,14 +97,13 @@ async def register(conversation_id: str, speaker_id: str = Form(..., min_length=
                    audio_file: UploadFile = ...):
     mem = memory(conversation_id)
     audio = load(await audio_file.read())
-    duration = len(audio) / RATE
-    if not 4.5 <= duration <= 5.5:
-        raise HTTPException(400, f"recording must be 4.5-5.5 s, got {duration:.2f}s")
+    duration = len(audio) / RATE  # no length or speech checks: any recording is accepted
     mask = speech_mask(audio)
     speech = float(mask.sum() * FRAME / RATE)
-    if speech < 3.0:
-        raise HTTPException(400, f"need at least 3 s of speech, detected {speech:.1f}s")
-    mem[speaker_id] = embed(audio[: len(mask) * FRAME][np.repeat(mask, FRAME)])  # speech frames only
+    # No minimum-speech check: the whole 5 s recording is accepted. Embed the speech frames
+    # when there are any, otherwise the full clip.
+    voiced = audio[: len(mask) * FRAME][np.repeat(mask, FRAME)]
+    mem[speaker_id] = embed(voiced if len(voiced) else audio)
     return {"conversation_id": conversation_id, "speaker_id": speaker_id, "status": "registered",
             "recording_duration": round(duration, 2), "speech_duration": round(speech, 2)}
 
