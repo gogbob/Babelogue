@@ -145,6 +145,7 @@
   .speaker-2 { --bubble-bg: var(--speaker-2-bg); --bubble-accent: var(--speaker-2-accent); }
   .speaker-3 { --bubble-bg: var(--speaker-3-bg); --bubble-accent: var(--speaker-3-accent); }
   .speaker-4 { --bubble-bg: var(--speaker-4-bg); --bubble-accent: var(--speaker-4-accent); }
+  .speaker-unknown { --bubble-bg: var(--app-surface); --bubble-accent: var(--app-muted); } /* voice not recognised */
 
   /* Chat bubble base. Use with a speaker class + one state class:
      <div class="bubble speaker-2 bubble-live">…</div> */

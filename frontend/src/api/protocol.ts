@@ -1,7 +1,7 @@
 // Wire format shared with the backend. Mirror of backend/app/schemas.py: keep both in sync.
 //
 // WebSocket  /ws/{sessionId}
-//   client -> server: binary frames = raw PCM 16-bit little-endian, mono, 16 kHz
+//   client -> server: binary frames = one 5 s .wav mic chunk each, with a JSON header (see socket.ts)
 //                     text frames   = JSON ClientMessage
 //   server -> client: text frames   = JSON ServerMessage
 //

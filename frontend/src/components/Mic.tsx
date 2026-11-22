@@ -27,16 +27,17 @@ export function Mic({ onStart, onStop, onChunk }: MicProps) {
   const chunkerRef = useRef<ChunkRecorder | null>(null)
 
   //Stop function
-  const stop = () => {
-    
-    // Finish chunking first (sends the leftover audio as a last chunk), then release the mic
-    chunkerRef.current?.stop()
+  const stop = async () => {
+    const chunker = chunkerRef.current
     chunkerRef.current = null
     //Get the media tracks (radio/video tracks) and stop each of them (includes the mic) to stop stream
     streamRef.current?.getTracks().forEach((t) => t.stop())
     streamRef.current = null
     setRecording(false)
-    onStop?.() //Guarantees error prone
+    // The leftover audio goes out as a last chunk; only then report the stop,
+    // so the backend's "mic off" arrives after that chunk.
+    await chunker?.stop()
+    onStop?.()
   }
 
   const start = async () => {
