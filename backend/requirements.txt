@@ -1,0 +1,10 @@
+# Core server (enough to run with STT_BACKEND=dummy; translation uses Azure over HTTP)
+fastapi>=0.115
+uvicorn[standard]>=0.32
+python-multipart>=0.0.20
+pydantic-settings>=2.6
+httpx>=0.28
+numpy>=1.26
+scipy>=1.13
+soundfile>=0.12
+av>=13.0  # decodes the browser's webm/opus voice check-in recordings

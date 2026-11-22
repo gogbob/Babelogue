@@ -14,7 +14,7 @@ speach to text: Whisper + fast-Whisper (faster-whisper, int8 quantized, also doe
 
 text to speech: Azure AI API (TTS) (on click only, proxied through backend, cached, watch F0 free tier limits)
 
-translation: TranslateGemma (finalized utterances only, keep a faster fallback ready)
+translation: Azure AI Translator (finalized utterances only, one request for all target languages)
 
 Backend: Python + FastAPI
 

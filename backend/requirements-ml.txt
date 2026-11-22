@@ -1,0 +1,4 @@
+# Local speech-to-text model (translation runs on Azure, no local model needed).
+# faster-whisper uses CTranslate2; for GPU it needs CUDA 12 + cuDNN 9 installed.
+-r requirements.txt
+faster-whisper>=1.1

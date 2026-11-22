@@ -4,15 +4,27 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project status
 
-Babelogue is a CodeJam hackathon project. `frontend/` holds an empty React + Vite + TypeScript + Tailwind app with no features yet. The backend is not built yet, and there is no test suite.
+Babelogue is a CodeJam hackathon project. `frontend/` holds the React + Vite + TypeScript + Tailwind app. `backend/` holds the FastAPI main backend (see `backend/README.md`). It talks to a separate GPU **audio processing service** (VAD, speech separation, speaker ID via ECAPA-TDNN embeddings) whose API is in `API_PCGPU.md`. `backend/mock_audio_service/` fakes that service for local development. There is no test suite.
+
+The WebSocket/REST contract lives in `backend/app/schemas.py` and is mirrored in `frontend/src/api/protocol.ts`. Change both together.
 
 ## Commands (frontend)
 
 Run these from `frontend/`:
 - `npm install`: install dependencies
-- `npm run dev`: dev server at http://localhost:5173 (proxies `/ws` and `/tts` to `localhost:8000`)
+- `npm run dev`: dev server at http://localhost:5173 (proxies `/api`, `/ws` and `/tts` to `localhost:8000`)
 - `npm run build`: type-check, then production build
 - `npm run typecheck`: type-check only
+
+## Commands (backend)
+
+Run these from `backend/` with the venv active (`.venv\Scripts\activate`):
+- `pip install -r requirements.txt` (core) / `pip install -r requirements-ml.txt` (faster-whisper)
+- `uvicorn mock_audio_service.main:app --port 8001`: fake audio service (when the GPU box is not available)
+- `uvicorn app.main:app --port 8000 --reload`: main backend. Use a single worker, because state is in memory
+- No GPU or Azure: set `STT_BACKEND=dummy TRANSLATOR_BACKEND=echo`
+- Settings come from env vars or `backend/.env` (template: `backend/.env.example`)
+
 ## What we are building
 
 A real-time conversation translator for **up to 4 people sharing one microphone**. Think of it as "Google Translate for a live group conversation." Each person sees everyone's speech as a live chat, translated into their own preferred language.
@@ -49,7 +61,7 @@ A real-time conversation translator for **up to 4 people sharing one microphone*
 | Voice activity detection | Silero VAD | Detects speech start and pause boundaries. Drives the live bubble and utterance finalization |
 | Speaker identification | NVIDIA Streaming Sortformer and/or voice embeddings | Up to 4 speakers. Supported by the voice check-in plus **manual one-tap reassignment** of a bubble to another speaker |
 | Speech-to-text + language ID | faster-whisper | Compact, int8-quantized model to stay within the latency budget |
-| Translation | TranslateGemma | Translate **finalized** utterances only. Keep a faster fallback ready |
+| Translation | Azure AI Translator | Translate **finalized** utterances only. One request per utterance covers every target language. Key stays in the backend |
 | Text-to-speech | Azure AI Speech | Triggered on click only, proxied through the backend, cached. Watch the Free (F0) tier rate limits |
 | Speech separation | Multi-Decoder DPRNN / SepTDA | **Stretch goal only, not in the MVP.** The MVP assumes people take turns speaking |
 
@@ -60,7 +72,7 @@ mic (browser) ──WS audio chunks──▶ Silero VAD ──speech segment─�
         ▲                                │ (interim)                         │
         │                                ▼                                   ▼
    chat events ◀──WS── live bubble (partial STT)        finalized utterance ──▶ faster-whisper (text + lang)
-                                                                               ──▶ TranslateGemma (per target language)
+                                                                               ──▶ Azure Translator (all target languages, 1 call)
                                                                                ──▶ final message event to UI
 UI click ──REST /tts──▶ Azure TTS (cached) ──▶ audio
 ```
@@ -71,7 +83,7 @@ UI click ──REST /tts──▶ Azure TTS (cached) ──▶ audio
 - **Translate once per distinct target language, not once per listener.** If 3 people prefer English, translate to English once.
 - **Use the same fixed sample format end to end.** Silero VAD, Sortformer and Whisper all expect 16 kHz mono, so resample in the browser (or once at ingest) before sending chunks.
 - **Keep partial and final transcription separate.** For live bubbles, re-run faster-whisper on a rolling buffer, or show a "speaking…" placeholder if that is too slow. Translate only at finalization.
-- **Load models once at server startup**, not per request. Sortformer and TranslateGemma are large, so check GPU VRAM early.
+- **Load models once at server startup**, not per request. Sortformer and Whisper are large, so check GPU VRAM early.
 - **Cache TTS by (text, language, voice)** so repeated clicks don't use up the F0 quota.
 - **Treat the voice check-in and manual reassignment as essential to the demo, not optional extras.** Speaker ID is the riskiest part of the plan.
 - **Keep secrets (Azure key/region) in a git-ignored `.env`** that only the backend reads.
