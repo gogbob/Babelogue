@@ -1,15 +1,15 @@
-import { useEffect, useState } from "react";
-import { ChatList } from "./components/ChatBubble";
+import { useEffect, useRef, useState } from "react";
+import { ChatList, type BubbleMessageProps } from "./components/ChatBubble";
 import { ChatContainer } from "./components/ChatContainer";
 import { Mic } from "./components/Mic";
 import { SoundWaves } from "./components/SoundWaves";
 import { ThemeToggle } from "./components/ThemeToggle";
-import { TEST_MESSAGES } from "./testData/chats";
 import { SpeakerSlot } from "./components/ChatBubble";
 import { AddChatButton } from "./components/AddChatButton";
 import { VoiceCalibration, type VoiceSample } from "./components/VoiceCalibration";
-import { checkIn, createSession, uploadChunk } from "./api/rest";
-import type { Participant } from "./api/protocol";
+import { checkIn, createSession } from "./api/rest";
+import { SessionSocket } from "./api/socket";
+import type { Participant, ServerMessage, Utterance } from "./api/protocol";
 
 const MAX_PEOPLE = 4;
 
@@ -17,6 +17,21 @@ const MAX_PEOPLE = 4;
 // Kept outside React so StrictMode's double-run of effects doesn't create two sessions.
 let sessionPromise: Promise<string> | null = null;
 const getSession = () => (sessionPromise ??= createSession());
+
+/** Add or replace a participant, keeping the list unique by id. */
+const upsert = (ps: Participant[], p: Participant) => [...ps.filter((x) => x.id !== p.id), p];
+
+/** One utterance as seen by `reader`: translated into their language, colored by the speaker. */
+function toBubble(u: Utterance, reader: Participant, people: Participant[]): BubbleMessageProps {
+  const speaker = people.find((p) => p.id === u.participant_id);
+  return {
+    id: u.id,
+    speaker: speaker?.slot ?? null, // null = voice not recognised yet
+    text: u.translations[reader.language] ?? u.text, // fall back to the original
+    status: u.status,
+    time: u.created_at,
+  };
+}
 
 export default function App() {
   // Live mic stream while recording, null when stopped
@@ -33,6 +48,12 @@ export default function App() {
   // Voice calibration pop-up, opened by the "+" button
   const [calibrating, setCalibrating] = useState(false);
 
+  // Conversation, in transcript order (live bubbles included)
+  const [utterances, setUtterances] = useState<Utterance[]>([]);
+  // Last error reported by the backend (GPU, STT or translation)
+  const [notice, setNotice] = useState<string | null>(null);
+  const socket = useRef<SessionSocket | null>(null);
+
   useEffect(() => {
     getSession()
       .then(setSessionId)
@@ -41,6 +62,51 @@ export default function App() {
         setSessionError(e.message);
       });
   }, []);
+
+  // WebSocket: mic chunks go up, live/final bubbles come down
+  useEffect(() => {
+    if (!sessionId) return;
+    const put = (u: Utterance) =>
+      setUtterances((us) => (us.some((x) => x.id === u.id) ? us.map((x) => (x.id === u.id ? u : x)) : [...us, u]));
+    const onMessage = (m: ServerMessage) => {
+      switch (m.type) {
+        case "session_state":
+          setParticipants(m.participants);
+          setUtterances(m.utterances);
+          break;
+        case "participant_joined":
+          setParticipants((ps) => upsert(ps, m.participant));
+          break;
+        case "participant_left":
+          setParticipants((ps) => ps.filter((p) => p.id !== m.participant_id));
+          break;
+        case "utterance_partial":
+        case "utterance_final":
+        case "utterance_updated":
+          put(m.utterance);
+          break;
+        case "utterance_discarded":
+          setUtterances((us) => us.filter((u) => u.id !== m.utterance_id));
+          break;
+        case "error":
+          setNotice(m.message);
+          break;
+      }
+    };
+    const s = new SessionSocket(sessionId, onMessage);
+    socket.current = s;
+    return () => {
+      s.close();
+      socket.current = null;
+    };
+  }, [sessionId]);
+
+  // Hide backend errors after a few seconds
+  useEffect(() => {
+    if (!notice) return;
+    const t = setTimeout(() => setNotice(null), 6000);
+    return () => clearTimeout(t);
+  }, [notice]);
 
   // Called with the 5-second recording: upload it, and only add the box once the backend saved it.
   // Throwing keeps the pop-up open and shows the error there.
@@ -51,7 +117,7 @@ export default function App() {
       language: sample.language,
       audio: sample.audio,
     });
-    setParticipants((ps) => [...ps, person]);
+    setParticipants((ps) => upsert(ps, person));
     setSelected(person.slot); // new box starts in front
     setCalibrating(false);
   };
@@ -72,6 +138,11 @@ export default function App() {
         {sessionError} (is the backend running?)
       </p>
     )}
+    {notice && !sessionError && (
+      <p className="fixed inset-x-0 top-32 z-30 mx-auto w-fit rounded-lg bg-amber-100 px-3 py-1 text-sm text-amber-800">
+        {notice}
+      </p>
+    )}
     {participants.map((person) => (
       <ChatContainer
         key={person.id}
@@ -79,7 +150,7 @@ export default function App() {
         selected={selected === person.slot}
         onSelect={() => setSelected(person.slot)}
       >
-        <ChatList messages={TEST_MESSAGES} />
+        <ChatList messages={utterances.map((u) => toBubble(u, person, participants))} />
       </ChatContainer>
     ))}
     <AddChatButton
@@ -91,12 +162,15 @@ export default function App() {
       <SoundWaves stream={stream} />
       <Mic
         onStart={setStream}
-        onStop={() => setStream(null)}
-        // Each chunk: 5 s of 16 kHz mono .wav, a new one every 3 s. Saved by the backend in
-        // voice_samples/<session id>/chunks/
+        // Mic off (after the last chunk was sent): close the open bubbles
+        onStop={() => {
+          setStream(null);
+          socket.current?.sendJson({ type: "flush" });
+        }}
+        // Each chunk: 5 s of 16 kHz mono .wav, a new one every 3 s, sent over the WebSocket.
+        // The backend saves it (voice_samples/<session>/chunks/), then GPU -> Groq -> Azure.
         onChunk={(chunk) => {
-          if (!sessionId) return;
-          uploadChunk(sessionId, chunk).catch((e: Error) => console.error(e.message));
+          socket.current?.sendChunk(chunk).catch((e: Error) => console.error(e.message));
         }}
       />
     </div>

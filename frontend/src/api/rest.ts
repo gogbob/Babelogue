@@ -48,17 +48,4 @@ export async function checkIn(
   return res.json()
 }
 
-/** Save one mic chunk (5 s .wav) in the conversation's folder: voice_samples/<session>/chunks/. */
-export async function uploadChunk(
-  sessionId: string,
-  chunk: { wav: Blob; index: number; start: number; end: number },
-): Promise<void> {
-  const form = new FormData()
-  form.append('index', String(chunk.index))
-  form.append('start', String(chunk.start))
-  form.append('end', String(chunk.end))
-  form.append('audio_file', chunk.wav, `chunk_${chunk.index}.wav`)
-
-  const res = await fetch(`/api/sessions/${sessionId}/chunks`, { method: 'POST', body: form })
-  if (!res.ok) await fail(res, `Saving chunk ${chunk.index} failed`)
-}
+// Mic chunks are sent over the WebSocket, see socket.ts.

@@ -6,7 +6,7 @@ from pathlib import Path
 from fastapi import APIRouter, Form, HTTPException, Request, UploadFile
 
 from ..schemas import Participant, SessionCreated, Utterance
-from ..services.audio_service import AudioServiceError  # used by create_session
+from ..services.audio_service import AudioServiceError
 from ..services.audio_utils import decode_any, fit_duration, to_wav_bytes
 from ..session import Session, SessionManager
 
@@ -65,9 +65,12 @@ async def check_in(
 
     participant = Participant(id=f"p{slot}-{uuid.uuid4().hex[:6]}", name=name, language=language, slot=slot)
     sample = fit_duration(audio, rate, CHECKIN_SECONDS)
-    # Only save the recording as files in the project. The voice is NOT sent to the
-    # speaker-ID audio service yet; to enable recognition later, call:
-    #   await session.services.audio.register_speaker(session.conversation_id, participant.id, sample)
+    # Register the voice with the GPU audio service: it stores the voice embedding so the
+    # mic chunks can be matched to this person (speaker_id = participant.id).
+    try:
+        await session.services.audio.register_speaker(session.conversation_id, participant.id, sample)
+    except AudioServiceError as e:
+        raise HTTPException(422, f"voice calibration failed: {e}")
     save_voice_sample(session, participant, raw, audio_file.filename, to_wav_bytes(sample, rate))
     await session.add_participant(participant)
     return participant
@@ -82,25 +85,6 @@ def save_voice_sample(session: Session, p: Participant, raw: bytes, filename: st
     if ext != ".wav":  # don't overwrite the normalized WAV with the upload
         (folder / f"{p.id}{ext}").write_bytes(raw)
     (folder / f"{p.id}.wav").write_bytes(wav)
-
-
-@router.post("/{session_id}/chunks")
-async def save_chunk(
-    request: Request,
-    session_id: str,
-    index: int = Form(..., ge=0),
-    start: float = Form(..., ge=0),
-    end: float = Form(..., ge=0),
-    audio_file: UploadFile = ...,
-):
-    """Save one mic chunk (5 s .wav, a new one every 3 s) as
-    voice_samples/<session>/chunks/chunk_<index>_<start>-<end>s.wav. No processing."""
-    session = get_session(request, session_id)
-    folder = session.services.settings.voice_samples_dir / session.id / "chunks"
-    folder.mkdir(parents=True, exist_ok=True)
-    path = folder / f"chunk_{index:04d}_{start:.1f}-{end:.1f}s.wav"
-    path.write_bytes(await audio_file.read())
-    return {"saved": path.name, "bytes": path.stat().st_size}
 
 
 @router.delete("/{session_id}/participants/{participant_id}")

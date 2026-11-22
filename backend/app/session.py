@@ -2,8 +2,9 @@
 
 Everything lives in RAM in one process: run uvicorn with a single worker.
 
-    mic PCM ─▶ Chunker (5 s / 2.5 s hop) ─▶ audio service (VAD + separation + speaker ID)
-            ─▶ UtteranceBuilder ─▶ live bubble (partial Whisper) ─▶ final: Whisper + language ID
+    WAV chunks from the browser (5 s every 3 s) ─▶ ChunkCoordinator (coordinator.py)
+            ─▶ audio service (VAD + separation + speaker ID) ─▶ UtteranceBuilder
+            ─▶ live bubble (partial STT) ─▶ final: STT (Groq / Whisper) + language ID
             ─▶ translate once per distinct preferred language ─▶ broadcast to every client
 """
 
@@ -13,7 +14,6 @@ import time
 import uuid
 from dataclasses import dataclass, field
 
-import numpy as np
 from fastapi import WebSocket
 from pydantic import BaseModel
 
@@ -23,7 +23,8 @@ from .schemas import (
     UtteranceDiscardedOut, UtteranceFinalOut, UtterancePartialOut, UtteranceUpdatedOut,
 )
 from .services.audio_service import AudioServiceClient, AudioServiceError
-from .services.chunker import Chunk, Chunker
+from .coordinator import ChunkCoordinator
+from .services.chunker import Chunk
 from .services.transcriber import Transcriber
 from .services.translator import TranslationService
 from .services.tts import AzureTTS
@@ -57,7 +58,7 @@ class Session:
 
     def __post_init__(self) -> None:
         s = self.services.settings
-        self.chunker = Chunker(s.sample_rate, s.chunk_seconds, s.hop_seconds)
+        self.coordinator = ChunkCoordinator(self)  # WAV chunks from the WebSocket -> this pipeline
         self.builder = UtteranceBuilder(s.sample_rate, s.merge_gap_s, s.finalize_silence_s, s.min_utterance_s)
         self._queue: asyncio.Queue[Chunk | None] = asyncio.Queue()
         self._worker = asyncio.create_task(self._run_chunks())
@@ -98,14 +99,9 @@ class Session:
 
     # ---------- audio in ----------
 
-    def push_audio(self, pcm: np.ndarray) -> None:
-        for chunk in self.chunker.push(pcm):
-            self._queue.put_nowait(chunk)
-
-    def flush_audio(self) -> None:
-        if (chunk := self.chunker.flush()) is not None:
-            self._queue.put_nowait(chunk)
-        self._queue.put_nowait(None)  # None = close all open bubbles
+    def enqueue_chunk(self, chunk: Chunk | None) -> None:
+        """Queue a chunk for the GPU. None = mic stopped: close all open bubbles."""
+        self._queue.put_nowait(chunk)
 
     async def _run_chunks(self) -> None:
         """Process chunks one at a time, in order (the audio service serializes inference anyway)."""

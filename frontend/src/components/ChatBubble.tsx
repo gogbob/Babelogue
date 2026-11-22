@@ -5,7 +5,7 @@ export type SpeakerSlot = 1 | 2 | 3 | 4
 
 export interface BubbleMessageProps {
   id: string
-  speaker: SpeakerSlot // which person said it; decides the bubble color
+  speaker: SpeakerSlot | null // which person said it; decides the bubble color (null = not recognised)
   text: string
   status: 'live' | 'final' // live = still talking, final = stopped talking
   time?: number // ms timestamp, shown once the message is final
@@ -27,7 +27,7 @@ export function ChatBubble({ message: m }: { message: BubbleMessageProps }) {
     : ''
 
   return (
-    <div className={`flex items-start gap-2 speaker-${m.speaker}`}>
+    <div className={`flex items-start gap-2 speaker-${m.speaker ?? 'unknown'}`}>
       {/* Colored dot so the person is recognizable even at a glance */}
       <span
         className="mt-2 h-3 w-3 shrink-0 rounded-full"

@@ -2,8 +2,9 @@
 
 WebSocket  /ws/{session_id}
   client -> server
-    * binary frames: raw PCM, 16-bit little-endian, mono, 16 kHz (any frame size)
-    * JSON text frames: ClientMessage below
+    * binary frames: one WAV chunk each (5 s, 16 kHz mono) with a small JSON header,
+      see coordinator.py for the exact layout
+    * JSON text frames: ClientMessage below ({"type": "flush"} when the mic turns off)
   server -> client
     * JSON text frames: ServerMessage below
 """
