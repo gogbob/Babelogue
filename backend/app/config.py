@@ -19,7 +19,7 @@ class Settings(BaseSettings):
     # --- Audio format: one fixed format end to end ---
     sample_rate: int = 16_000  # Hz, mono
     chunk_seconds: float = 5.0  # chunk length sent to the audio service
-    hop_seconds: float = 2.5  # a new chunk starts every hop (2.5 s overlap)
+    hop_seconds: float = 3  # a new chunk starts every hop (3 s overlap)
     max_participants: int = 4
 
     # --- Utterance building ---
@@ -28,7 +28,9 @@ class Settings(BaseSettings):
     min_utterance_s: float = 0.4  # shorter utterances are dropped as noise
 
     # --- Speech-to-text ---
-    stt_backend: Literal["faster_whisper", "dummy"] = "faster_whisper"
+    stt_backend: Literal["faster_whisper", "dummy", "groq"] = "dummy"
+    groq_api_key: str = ""
+    groq_model: str = "whisper-large-v3-turbo"
     whisper_model: str = "small"  # tiny | base | small | medium | large-v3 | distil-large-v3
     whisper_device: str = "auto"  # auto | cuda | cpu
     whisper_compute_type: str = "int8"  # int8 | int8_float16 | float16

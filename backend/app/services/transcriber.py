@@ -1,5 +1,10 @@
 """Speech-to-text + language ID with faster-whisper. Loaded once at startup."""
 
+import langcodes
+import httpx
+
+from .audio_utils import to_wav_bytes
+
 import asyncio
 import logging
 import threading
@@ -58,7 +63,77 @@ class DummyTranscriber(Transcriber):
         return Transcript(text=f"[{secs:.1f}s of speech{'…' if partial else ''}]", language=language or "en")
 
 
+class GroqTranscriber(Transcriber):
+    def __init__(self, settings: Settings):
+        if not settings.groq_api_key:
+            raise RuntimeError("GROQ_API_KEY is missing")
+
+        self.settings = settings
+        self.client = httpx.AsyncClient(
+            base_url="https://api.groq.com",
+            headers={
+                "Authorization": f"Bearer {settings.groq_api_key}"
+            },
+            timeout=25.0,
+        )
+
+    async def transcribe(
+        self,
+        audio: np.ndarray,
+        *,
+        partial: bool = False,
+        language: str | None = None,
+    ) -> Transcript:
+
+        wav = to_wav_bytes(
+            audio,
+            self.settings.sample_rate,
+        )
+
+        data = {
+            "model": self.settings.groq_model,
+            "response_format": "verbose_json",
+        }
+
+        if language:
+            data["language"] = language
+
+        response = await self.client.post(
+            "/openai/v1/audio/transcriptions",
+            data=data,
+            files={
+                "file": (
+                    "utterance.wav",
+                    wav,
+                    "audio/wav",
+                )
+            },
+        )
+
+        response.raise_for_status()
+        result = response.json()
+
+        detected = result.get("language")
+
+        language = None
+        if detected:
+            try:
+                language = langcodes.find(detected).language
+            except (LookupError, ValueError):
+                pass
+
+        return Transcript(
+            text=result["text"].strip(),
+            language=language,
+        )
+
+    async def close(self):
+        await self.client.aclose()
+
+
 def build_transcriber(settings: Settings) -> Transcriber:
     if settings.stt_backend == "dummy":
         return DummyTranscriber()
+    if settings.stt_backend == "groq":
+        return GroqTranscriber(settings)
     return WhisperTranscriber(settings)

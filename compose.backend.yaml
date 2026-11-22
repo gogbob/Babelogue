@@ -1,0 +1,80 @@
+# Merge with existing Babelogue Compose: docker compose -f compose.yaml -f compose.backend.yaml ...
+# Assumes existing frontend service and app_net Docker network.
+services:
+  backend:
+    image: babelogue-backend:local
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    env_file:
+      - ./backend/.env
+    environment:
+      # Deliberate safe M1 overrides; Azure credentials in the private env file remain available.
+      AUDIO_SERVICE_URL: https://9gpwpr3.tail2cd938.ts.net
+      STT_BACKEND: groq
+      TRANSLATOR_BACKEND: azure
+      PARTIAL_TRANSCRIPTS: "false"
+      TTS_CACHE_DIR: /app/tts_cache
+    expose:
+      - "8000"
+    volumes:
+      - babelogue_tts_cache:/app/tts_cache
+    networks:
+      - app_net
+    depends_on:
+      - mock-audio
+    security_opt:
+      - no-new-privileges:true
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=5)"]
+      interval: 30s
+      timeout: 8s
+      retries: 4
+      start_period: 20s
+
+  mock-audio:
+    image: babelogue-backend:local
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    command: ["uvicorn", "mock_audio_service.main:app", "--host", "0.0.0.0", "--port", "8001", "--workers", "1"]
+    expose:
+      - "8001"
+    networks:
+      - app_net
+    security_opt:
+      - no-new-privileges:true
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8001/health', timeout=5)"]
+      interval: 30s
+      timeout: 8s
+      retries: 4
+      start_period: 15s
+
+  # Staging gateway: do NOT switch Cloudflare route until security controls are ready.
+  # This avoids modifying the existing frontend Nginx image/configuration.
+  gateway:
+    image: nginx:stable-alpine
+    restart: unless-stopped
+    volumes:
+      - ./nginx/gateway.conf:/etc/nginx/conf.d/default.conf:ro
+    expose:
+      - "80"
+    depends_on:
+      - backend
+      - frontend
+    networks:
+      - app_net
+    security_opt:
+      - no-new-privileges:true
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://127.0.0.1/ || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+volumes:
+  babelogue_tts_cache:

@@ -1,0 +1,26 @@
+services:
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    expose:
+      - "80"
+    networks:
+      - app_net
+  cloudflared:
+    image: cloudflare/cloudflared:latest
+    restart: unless-stopped
+    command: tunnel --no-autoupdate run
+    environment:
+      TUNNEL_TOKEN: ${TUNNEL_TOKEN:?Tunnel token required}
+    depends_on:
+      - frontend
+    networks:
+      - app_net
+    security_opt:
+      - no-new-privileges:true
+
+networks:
+  app_net:
+    driver: bridge

@@ -8,3 +8,4 @@ numpy>=1.26
 scipy>=1.13
 soundfile>=0.12
 av>=13.0  # decodes the browser's webm/opus voice check-in recordings
+langcodes[data]

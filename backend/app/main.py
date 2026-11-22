@@ -9,7 +9,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from .api import sessions, tts, ws
 from .config import get_settings
 from .services.audio_service import AudioServiceClient
-from .services.transcriber import build_transcriber
+from .services.transcriber import build_transcriber, GroqTranscriber
 from .services.translator import build_translation_service
 from .services.tts import AzureTTS
 from .session import Services, SessionManager
@@ -35,6 +35,8 @@ async def lifespan(app: FastAPI):
     yield
     await app.state.sessions.close_all()
     await services.audio.close()
+    if isinstance(services.transcriber, GroqTranscriber):
+        await services.transcriber.close()
     await services.translator.close()
     await services.tts.close()
 
