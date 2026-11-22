@@ -6,7 +6,6 @@ export type SpeakerSlot = 1 | 2 | 3 | 4
 export interface BubbleMessageProps {
   id: string
   speaker: SpeakerSlot // which person said it; decides the bubble color
-  name: string
   text: string
   status: 'live' | 'final' // live = still talking, final = stopped talking
   time?: number // ms timestamp, shown once the message is final
@@ -35,10 +34,7 @@ export function ChatBubble({ message: m }: { message: BubbleMessageProps }) {
         style={{ background: 'var(--bubble-accent)' }}
       />
       <div className={`bubble ${live ? 'bubble-live' : 'bubble-final'}`} aria-live={live ? 'polite' : 'off'}>
-        <div className="flex items-baseline gap-2">
-          <span className="bubble-name">{m.name}</span>
-          <span className="text-xs opacity-60">{live ? 'speaking…' : time}</span>
-        </div>
+        <span className="text-xs opacity-60">{live ? 'speaking…' : time}</span>
         <p className="bubble-text mt-0.5 whitespace-pre-wrap break-words">{m.text}</p>
       </div>
     </div>

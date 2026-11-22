@@ -21,6 +21,10 @@
   --app-muted: #64748b;     /* timestamps, hints */
   --app-hover: #f1f5f9;
 
+  /* Chat box layers: every box is either behind or in front (the selected one).*/
+  --z-chat-back: 10;
+  --z-chat-front: 11;
+
   --speaker-1-bg: #fee2e2;      /* red */
   --speaker-1-accent: #ef4444;
   --speaker-2-bg: #dbeafe;      /* blue */
@@ -154,11 +158,6 @@
     color: var(--bubble-text);
     transition: opacity 0.2s, border-style 0.2s;
   }
-  .bubble-name {
-    font-size: 0.75rem;
-    font-weight: 600;
-    color: var(--bubble-accent);
-  }
 
   /* Update state: person is still talking, text keeps changing */
   .bubble-live {
@@ -203,6 +202,8 @@
     flex-shrink: 0;
     flex-direction: column;
     align-items: center;
+    position: relative; /* needed for z-index */
+    z-index: 5;        /* mic + waves stay above the chat boxes */
   }
 
   /* Bottom bar holding the microphone button */
@@ -242,7 +243,7 @@
      preferred language it shows (set by a .speaker-N class). */
   .chat-container {
     position: fixed;
-    z-index: 10;
+    z-index: var(--z-chat-back);
     display: flex;
     flex-direction: column;
     max-width: calc(100vw - 1rem);
@@ -266,8 +267,134 @@
     user-select: none;
     touch-action: none; /* let touch drags move the window instead of scrolling the page */
   }
+  /* Selected box: brought to the front layer */
+  .chat-container-front {
+    z-index: var(--z-chat-front);
+  }
   .chat-container-handle:active {
     cursor: grabbing;
+  }
+  .chat-container {
+    transition: transform 1s ease; /* smooth 90° turn */
+  }
+  .chat-container-handle {
+    position: relative; /* anchor for the rotate button */
+    min-height: 2.25rem; /* no label anymore: keep the bar tall enough to grab */
+  }
+  /* Circular-arrow rotate button on the handle's right. Hidden on PC,
+     shown in the mobile media query below. */
+  .rotate-button {
+    display: none;
+    position: absolute;
+    top: 50%;
+    right: 0.75rem;
+    transform: translateY(-50%);
+    align-items: center;
+    justify-content: center;
+    height: 2rem;
+    width: 2rem;
+    border-radius: 9999px;
+    color: var(--bubble-accent);
+    cursor: pointer;
+  }
+
+  /* "+" button centered on the screen; always bellow the chat boxes (--z-chat-back / --z-chat-front) */
+  .add-chat-button {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    z-index: 5;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    height: 4rem;
+    width: 4rem;
+    border-radius: 9999px;
+    border: 2px solid var(--app-border);
+    background-color: var(--app-surface);
+    color: var(--app-text);
+    box-shadow: 0 4px 12px rgb(0 0 0 / 0.15);
+    transition: background-color 0.15s, opacity 0.15s;
+  }
+  .add-chat-button:hover:not(:disabled) {
+    background-color: var(--app-hover);
+  }
+  /* Max containers reached: grayed out */
+  .add-chat-button:disabled {
+    color: var(--app-muted);
+    opacity: 0.4;
+    cursor: not-allowed;
+    box-shadow: none;
+  }
+
+  /* Voice calibration pop-up: dimmed backdrop above everything (buttons are 20) */
+  .modal-backdrop {
+    position: fixed;
+    inset: 0;
+    z-index: 30;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 1rem;
+    background-color: rgb(0 0 0 / 0.5);
+  }
+  .modal {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.75rem;
+    width: 100%;
+    max-width: 24rem;
+    padding: 1.5rem;
+    border-radius: 1.5rem;
+    background-color: var(--app-surface);
+    color: var(--app-text);
+    text-align: center;
+    box-shadow: 0 20px 40px rgb(0 0 0 / 0.3);
+  }
+  .modal-select {
+    width: 100%;
+    padding: 0.5rem;
+    border-radius: 0.5rem;
+    border: 1px solid var(--app-border);
+    background-color: var(--app-bg);
+    color: var(--app-text);
+  }
+  /* 5-second recording progress */
+  .modal-progress {
+    width: 100%;
+    height: 0.375rem;
+    border-radius: 9999px;
+    overflow: hidden;
+    background-color: var(--app-border);
+  }
+  .modal-progress > div {
+    height: 100%;
+    background-color: var(--mic-active);
+    transition: width 1s linear;
+  }
+  .modal-button {
+    padding: 0.5rem 1rem;
+    border-radius: 0.5rem;
+    border: 1px solid var(--app-border);
+    color: var(--app-text);
+  }
+  .modal-button:hover:not(:disabled) {
+    background-color: var(--app-hover);
+  }
+  .modal-button:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+  }
+  .modal-button-primary {
+    border-color: transparent;
+    background-color: var(--mic);
+    color: var(--mic-text);
+  }
+  .modal-button-primary:hover:not(:disabled) {
+    background-color: var(--mic);
+    opacity: 0.85;
   }
 
   /* Sound wave canvas: never wider than the screen */
@@ -281,9 +408,23 @@
     .app-header { padding: 0.25rem 0.75rem; }
     .screen-title { padding: 0.5rem; font-size: 1.5rem; line-height: 2rem; }
     .bubble { max-width: 85%; padding: 0.375rem 0.75rem; font-size: 0.95rem; }
-    .mic-bar { padding: 0.75rem; }
+    /* Mic + "+" side by side in the screen center, bellow chat boxes (z-index 10) */
+    .add-chat-button { left: calc(50% - 2.5rem); top: 57%; z-index: 5; }
+    .controls-stack {
+      position: fixed;
+      top: 57%;
+      left: calc(50% + 2.5rem);
+      transform: translate(-50%, -50%);
+      z-index: 5;
+    }
+    .mic-bar { position: relative; padding: 0; background: transparent; border: none; }
+    /* "Click to talk" hangs below the button so both buttons stay vertically aligned */
+    .mic-bar > span { position: absolute; top: 100%; margin-top: 0.25rem; white-space: nowrap; }
+    .wave-canvas { display: none; } /* no room for the waves in the center */
     .mic-button { height: 3.5rem; width: 3.5rem; }
-    .chat-container{max-width: 50%; max-height: 25%; padding: 0.20rem 0.50rem; font-size: 0.42.5rem;}
+    .chat-container{max-width: 50%; max-height: 35%; padding: 0.20rem 0.50rem; font-size: 0.42.5rem;}
+    .rotate-button { display: inline-flex; } /* rotation is mobile only */
+    .chat-container-handle { padding-inline: 2.75rem; } /* room for the rotate button */
   }
 
   /* Touch screens (no mouse): skip the hover zoom, it sticks after a tap */

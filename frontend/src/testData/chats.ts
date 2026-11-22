@@ -1,8 +1,8 @@
-import { slotFor, type BubbleMessageProps } from '../components/ChatBubble'
+import type { BubbleMessageProps, SpeakerSlot } from '../components/ChatBubble'
 
-// Test cases: 4 people, each with their own list of chats.
+// Test cases: 4 people (speaker slots 1-4), each with their own list of chats.
 // `at` = seconds into the conversation, used to interleave everyone's chats.
-// Alex and Sam both speak English (same-language speakers must still get different colors).
+// Speakers 1 and 2 both speak English (same-language speakers must still get different colors).
 interface TestChat {
   at: number
   text: string
@@ -10,13 +10,13 @@ interface TestChat {
 }
 
 interface TestPerson {
-  name: string
+  speaker: SpeakerSlot // 1 = red, 2 = blue, 3 = yellow, 4 = green
   chats: TestChat[]
 }
 
 export const TEST_PEOPLE: TestPerson[] = [
   {
-    name: 'Alex', // 1st → red
+    speaker: 1,
     chats: [
       { at: 0, text: 'Hey everyone, thanks for joining the call.' },
       { at: 40, text: 'Great, let me share my screen.' },
@@ -24,7 +24,7 @@ export const TEST_PEOPLE: TestPerson[] = [
     ],
   },
   {
-    name: 'Sam', // 2nd → blue
+    speaker: 2,
     chats: [
       { at: 10, text: 'Same here. Should we start with the demo plan?' },
       { at: 60, text: 'This is a longer message to check that the bubble wraps nicely when someone talks for a while without stopping, which happens a lot in real conversations.' },
@@ -32,14 +32,14 @@ export const TEST_PEOPLE: TestPerson[] = [
     ],
   },
   {
-    name: 'Camille', // 3rd → yellow
+    speaker: 3,
     chats: [
       { at: 20, text: "Bonjour ! Je suis ravie d'être ici." },
       { at: 70, text: "C'est très clair, merci." },
     ],
   },
   {
-    name: 'Lucía', // 4th → green
+    speaker: 4,
     chats: [
       { at: 30, text: 'Sí, primero mostramos el historial del chat.' },
       { at: 80, text: '¡Perfecto!' }, // very short
@@ -48,15 +48,13 @@ export const TEST_PEOPLE: TestPerson[] = [
   },
 ]
 
-const PEOPLE = TEST_PEOPLE.map((p) => p.name)
 const START = Date.now() - 2 * 60 * 1000 // conversation started 2 minutes ago
 
 /** All test chats flattened into one list, in conversation order. */
 export const TEST_MESSAGES: BubbleMessageProps[] = TEST_PEOPLE.flatMap((person) =>
   person.chats.map((chat, i) => ({
-    id: `${person.name}-${i}`,
-    name: person.name,
-    speaker: slotFor(person.name, PEOPLE),
+    id: `${person.speaker}-${i}`,
+    speaker: person.speaker,
     text: chat.text,
     status: chat.status ?? 'final',
     time: START + chat.at * 1000,
